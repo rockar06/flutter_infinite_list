@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_infinite_list_app/bloc/bloc.dart';
 import 'package:http/http.dart' as http;
 
+import 'home_page.dart';
+
 void main() {
   runApp(MyApp());
 }
