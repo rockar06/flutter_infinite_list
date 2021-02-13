@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:rxdart/rxdart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_infinite_list_app/bloc/bloc.dart';
@@ -10,6 +11,15 @@ class PostBloc extends Bloc<PostEvent, PostState> {
   final http.Client httpClient;
 
   PostBloc({@required this.httpClient}) : super(PostInitial());
+
+  @override
+  Stream<Transition<PostEvent, PostState>> transformEvents(
+      Stream<PostEvent> events, transitionFn) {
+    return super.transformEvents(
+      events.debounceTime(const Duration(milliseconds: 500)),
+      transitionFn,
+    );
+  }
 
   @override
   Stream<PostState> mapEventToState(PostEvent event) async* {
