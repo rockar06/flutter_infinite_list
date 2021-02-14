@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_infinite_list_app/bloc/bloc.dart';
 
 import 'bottom_loader.dart';
+import 'post_widget.dart';
 
 class HomePage extends StatefulWidget {
   @override
