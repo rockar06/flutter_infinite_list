@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_infinite_list_app/bloc/bloc.dart';
-
-import 'bottom_loader.dart';
-import 'post_widget.dart';
+import 'package:flutter_infinite_list_app/bottom_loader.dart';
+import 'package:flutter_infinite_list_app/post_widget.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -12,7 +11,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _scrollController = ScrollController();
-  final _scrollThreshold = 200.0;
   PostBloc _postBloc;
 
   @override
@@ -31,35 +29,44 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<PostBloc, PostState>(builder: (context, state) {
-      if (state is PostInitial) {
-        return Center(
-          child: CircularProgressIndicator(),
-        );
-      } else if (state is PostFailure) {
-        return Center(
-          child: Text('Failed to fetch posts'),
-        );
-      } else if (state is PostSuccess) {
-        if (state.posts.isEmpty) {
-          return Center(
-            child: Text('No posts'),
+      switch (state.status) {
+        case PostStatus.failure:
+          return const Center(
+            child: Text('Failed to fetch posts'),
           );
-        }
-        return ListView.builder(itemBuilder: (context, index) {
-          return index >= state.posts.length
-              ? BottomLoader()
-              : PostWidget(post: state.posts[index]);
-        });
+        case PostStatus.success:
+          if (state.posts.isEmpty) {
+            return const Center(
+              child: Text('No posts'),
+            );
+          }
+          return ListView.builder(
+            itemBuilder: (context, index) {
+              return index >= state.posts.length
+                  ? BottomLoader()
+                  : PostWidget(post: state.posts[index]);
+            },
+            itemCount: state.hasReachedMax
+                ? state.posts.length
+                : state.posts.length + 1,
+            controller: _scrollController,
+          );
+        default:
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
       }
-      return Center();
     });
   }
 
   void _onScroll() {
+    if (_isBottom) _postBloc.add(PostFetched());
+  }
+
+  bool get _isBottom {
+    if (!_scrollController.hasClients) return false;
     final maxScroll = _scrollController.position.maxScrollExtent;
-    final currentScroll = _scrollController.position.pixels;
-    if (maxScroll - currentScroll <= _scrollThreshold) {
-      _postBloc.add(PostFetched());
-    }
+    final currentScroll = _scrollController.offset;
+    return currentScroll >= (maxScroll * 0.9);
   }
 }

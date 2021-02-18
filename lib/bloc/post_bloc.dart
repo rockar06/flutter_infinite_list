@@ -7,14 +7,18 @@ import 'package:flutter_infinite_list_app/bloc/bloc.dart';
 import 'package:flutter_infinite_list_app/models/post.dart';
 import 'package:http/http.dart' as http;
 
-class PostBloc extends Bloc<PostEvent, PostState> {
-  final http.Client httpClient;
+const _postLimit = 20;
 
-  PostBloc({@required this.httpClient}) : super(PostInitial());
+class PostBloc extends Bloc<PostEvent, PostState> {
+  PostBloc({@required this.httpClient}) : super(const PostState());
+
+  final http.Client httpClient;
 
   @override
   Stream<Transition<PostEvent, PostState>> transformEvents(
-      Stream<PostEvent> events, transitionFn) {
+      Stream<PostEvent> events,
+      TransitionFunction<PostEvent, PostState> transitionFn,
+      ) {
     return super.transformEvents(
       events.debounceTime(const Duration(milliseconds: 500)),
       transitionFn,
@@ -23,39 +27,51 @@ class PostBloc extends Bloc<PostEvent, PostState> {
 
   @override
   Stream<PostState> mapEventToState(PostEvent event) async* {
-    final currentState = state;
-    if (event is PostFetched && !_hasReachedMax(currentState)) {
-      try {
-        if (currentState is PostInitial) {
-          final posts = await _fetchPosts(0, 20);
-          yield PostSuccess(posts, false);
-          return;
-        }
-        if (currentState is PostSuccess) {
-          final posts = await _fetchPosts(currentState.posts.length, 20);
-          yield posts.isEmpty
-              ? currentState.copyWith(hasReachedMax: true)
-              : PostSuccess(currentState.posts + posts, false);
-        }
-      } catch (_) {
-        yield PostFailure();
-      }
+    if (event is PostFetched) {
+      yield await _mapPostFetchedToState(state);
     }
   }
 
-  bool _hasReachedMax(PostState state) =>
-      state is PostSuccess && state.hasReachedMax;
-
-  Future<List<Post>> _fetchPosts(int startIndex, int limit) async {
-    final response = await httpClient.get(
-        'https://jsonplaceholder.typicode.com/posts?_start=$startIndex&_limit=$limit');
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body) as List;
-      return data
-          .map((rawPost) =>
-              Post(rawPost['id'], rawPost['title'], rawPost['body']))
-          .toList();
-    } else
-      throw Exception('error fetching posts');
+  Future<PostState> _mapPostFetchedToState(PostState state) async {
+    if (state.hasReachedMax) return state;
+    try {
+      if (state.status == PostStatus.initial) {
+        final posts = await _fetchPosts();
+        return state.copyWith(
+          status: PostStatus.success,
+          posts: posts,
+          hasReachedMax: _hasReachedMax(posts.length),
+        );
+      }
+      final posts = await _fetchPosts(state.posts.length);
+      return posts.isEmpty
+          ? state.copyWith(hasReachedMax: true)
+          : state.copyWith(
+        status: PostStatus.success,
+        posts: List.of(state.posts)..addAll(posts),
+        hasReachedMax: _hasReachedMax(posts.length),
+      );
+    } on Exception {
+      return state.copyWith(status: PostStatus.failure);
+    }
   }
+
+  Future<List<Post>> _fetchPosts([int startIndex = 0]) async {
+    final response = await httpClient.get(
+      'https://jsonplaceholder.typicode.com/posts?_start=$startIndex&_limit=$_postLimit',
+    );
+    if (response.statusCode == 200) {
+      final body = json.decode(response.body) as List;
+      return body.map((dynamic json) {
+        return Post(
+          json['id'] as int,
+          json['title'] as String,
+          json['body'] as String,
+        );
+      }).toList();
+    }
+    throw Exception('error fetching posts');
+  }
+
+  bool _hasReachedMax(int postsCount) => postsCount < _postLimit ? false : true;
 }
